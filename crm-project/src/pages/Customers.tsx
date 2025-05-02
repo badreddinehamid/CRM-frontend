@@ -1,44 +1,144 @@
-import { FiSearch, FiPlus, FiEdit2, FiTrash2, FiFilter } from 'react-icons/fi';
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { FiSearch, FiPlus, FiEdit2, FiTrash2, FiFilter, FiRefreshCw } from 'react-icons/fi';
+import { Link, useNavigate } from 'react-router-dom';
+
+interface Customer {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  status: 'Active' | 'Inactive' | 'Lead';
+  created_at?: string;
+  updated_at?: string;
+}
 
 const Customers = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Sample customer data - replace with real data from your API
-  const [customers, setCustomers] = useState([
-    { id: 1, name: 'Acme Corporation', email: 'contact@acme.com', phone: '(555) 123-4567', status: 'Active' },
-    { id: 2, name: 'Globex Inc', email: 'info@globex.com', phone: '(555) 987-6543', status: 'Active' },
-    { id: 3, name: 'Wayne Enterprises', email: 'support@wayne.com', phone: '(555) 456-7890', status: 'Inactive' },
-    { id: 4, name: 'Stark Industries', email: 'sales@stark.com', phone: '(555) 789-0123', status: 'Active' },
-    { id: 5, name: 'Initech', email: 'help@initech.com', phone: '(555) 234-5678', status: 'Lead' },
-  ]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const navigate = useNavigate();
 
+  // Fetch customers from API
+  const fetchCustomers = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      const response = await fetch('http://localhost:8000/api/customers/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch customers');
+      }
+
+      const data = await response.json();
+      setCustomers(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load customers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete customer
+  const handleDelete = async (id: number) => {
+    setIsDeleting(id);
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:8000/api/customers/${id}/`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete customer');
+      }
+
+      setCustomers(customers.filter(customer => customer.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete customer');
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    fetchCustomers();
+  }, [navigate]);
+
+  // Filter customers based on search term
   const filteredCustomers = customers.filter(customer =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase())
+    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.phone.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const deleteCustomer = (id: number) => {
-    setCustomers(customers.filter(customer => customer.id !== id));
+  // Refresh customers
+  const handleRefresh = () => {
+    setLoading(true);
+    setError('');
+    fetchCustomers();
   };
+
+  if (loading && customers.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-8 flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">👥 Customers</h1>
           <p className="text-gray-600 dark:text-gray-400">Manage your customer relationships</p>
         </div>
         
-        <Link 
-          to="/customers/new" 
-          className="mt-4 md:mt-0 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <FiPlus className="mr-2" />
-          Add Customer
-        </Link>
+        <div className="flex items-center mt-4 md:mt-0 space-x-3">
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            className="flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+          >
+            <FiRefreshCw className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <Link 
+            to="/customers/new" 
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <FiPlus className="mr-2" />
+            Add Customer
+          </Link>
+        </div>
       </div>
+
+      {/* Error message */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 rounded-lg">
+          {error}
+        </div>
+      )}
 
       {/* Search and filter bar */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
@@ -49,7 +149,7 @@ const Customers = () => {
             </div>
             <input
               type="text"
-              placeholder="Search customers..."
+              placeholder="Search customers by name, email or phone..."
               className="pl-10 pr-4 py-2 w-full border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -92,6 +192,9 @@ const Customers = () => {
                   <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {customer.created_at && new Date(customer.created_at).toLocaleDateString()}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-300">
                       {customer.email}
@@ -111,18 +214,23 @@ const Customers = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
+                      <div className="flex justify-end space-x-3">
                         <Link
                           to={`/customers/edit/${customer.id}`}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-1"
                         >
-                          <FiEdit2 />
+                          <FiEdit2 size={18} />
                         </Link>
                         <button
-                          onClick={() => deleteCustomer(customer.id)}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                          onClick={() => handleDelete(customer.id)}
+                          disabled={isDeleting === customer.id}
+                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 p-1 disabled:opacity-50"
                         >
-                          <FiTrash2 />
+                          {isDeleting === customer.id ? (
+                            <FiRefreshCw className="animate-spin" size={18} />
+                          ) : (
+                            <FiTrash2 size={18} />
+                          )}
                         </button>
                       </div>
                     </td>
@@ -131,7 +239,7 @@ const Customers = () => {
               ) : (
                 <tr>
                   <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                    No customers found
+                    {customers.length === 0 ? 'No customers found' : 'No matching customers found'}
                   </td>
                 </tr>
               )}
@@ -143,14 +251,20 @@ const Customers = () => {
       {/* Pagination would go here */}
       <div className="mt-4 flex items-center justify-between">
         <div className="text-sm text-gray-500 dark:text-gray-400">
-          Showing <span className="font-medium">1</span> to <span className="font-medium">5</span> of{' '}
+          Showing <span className="font-medium">1</span> to <span className="font-medium">{filteredCustomers.length}</span> of{' '}
           <span className="font-medium">{customers.length}</span> customers
         </div>
         <div className="flex space-x-2">
-          <button className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 disabled:opacity-50">
+          <button 
+            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 disabled:opacity-50"
+            disabled
+          >
             Previous
           </button>
-          <button className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300">
+          <button 
+            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 disabled:opacity-50"
+            disabled
+          >
             Next
           </button>
         </div>

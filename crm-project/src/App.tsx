@@ -4,6 +4,7 @@ import Customers from "./pages/Customers";
 import Tasks from "./pages/Tasks";
 import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
+import TasksPage from "./pages/Tasks";
 function App() {
   return (
     <Router>
@@ -12,7 +13,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/customers" element={<Customers />} />
-          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/tasks" element={<TasksPage />} />
           <Route path="/login" element={<Login/>} />
         </Routes>
       </div>
